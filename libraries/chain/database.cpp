@@ -997,6 +997,11 @@ void database::notify_applied_block( const signed_block& block )
    STEEM_TRY_NOTIFY( _applied_block, block )
 }
 
+void database::notify_irreversible_block( uint32_t block_num )
+{
+   STEEM_TRY_NOTIFY( _irreversible_block, block_num )
+}
+
 void database::notify_on_pending_transaction( const signed_transaction& tx )
 {
    STEEM_TRY_NOTIFY( _on_pending_transaction, tx )
@@ -3281,6 +3286,12 @@ boost::signals2::connection database::applied_block_proxy( const block_notificat
    return connect_impl(_applied_block, func, plugin, group, "<-block");
 }
 
+boost::signals2::connection database::irreversible_block_proxy( const irreversible_notification_t& func,
+   const abstract_plugin& plugin, int32_t group )
+{
+   return connect_impl(_irreversible_block, func, plugin, group, "<-irreversible");
+}
+
 boost::signals2::connection database::on_reindex_start_proxy(const on_reindex_start_notification_t& func,
    const abstract_plugin& plugin, int32_t group )
 {
@@ -3422,6 +3433,7 @@ void database::update_signing_witness(const witness_object& signing_witness, con
 void database::update_last_irreversible_block()
 { try {
    const dynamic_global_property_object& dpo = get_dynamic_global_properties();
+   auto old_last_irreversible = dpo.last_irreversible_block_num;
 
    /**
     * Prior to voting taking over, we must be more conservative...
@@ -3470,6 +3482,11 @@ void database::update_last_irreversible_block()
    }
 
    commit( dpo.last_irreversible_block_num );
+
+   for( uint32_t i = old_last_irreversible; i <= dpo.last_irreversible_block_num; ++i )
+   {
+      notify_irreversible_block( i );
+   }
 
    if( !( get_node_properties().skip_flags & skip_block_log ) )
    {
